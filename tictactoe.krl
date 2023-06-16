@@ -63,9 +63,9 @@ ruleset tictactoe {
 		}
 
 		get_move_problem = function(id, move) {
-			not move.match(re#[XO]:[A-C][1-3]#) =>                 "bad-move" |
-			ent:games{id}{"moves"}.any(function(x){ x == move}) => "already-occupied" | 
-			                                                       "not-your-turn"
+			not move.match(re#[XO]:[A-C][1-3]#) =>                 								"bad-move" |
+			ent:games{id}{"moves"}.any(function(x){ x.split(":")[1] == move.split(":")[1]}) =>  "already-occupied" | 
+			                                                       								"not-your-turn"
 		}
     }
 
@@ -148,7 +148,7 @@ ruleset tictactoe {
 		}
 		if (( not ent:games.keys().any(function(x){x == message{"thid"}}))                                                  // Game does not exist
 		   || (ent:games{message{"thid"}}{"state"} == "their_move"                                                       	  // OR It is their move
-		   && not ent:games{message{"thid"}}{"moves"}.any(function(x){ x == message{"body"}{"moves"}.reverse().head()})))  	  // AND The move is unique
+		   && not ent:games{message{"thid"}}{"moves"}.any(function(x){ x.split(":")[1] == message{"body"}{"moves"}.reverse().head().split(":")[1]})))  	  // AND The move is unique
 		   && message{"body"}{"moves"}.reverse().head().match(re#[XO]:[A-C][1-3]#) then noop()                              // AND The move is valid
 		fired {
 			raise tictactoe event "accept_move" attributes event:attrs
