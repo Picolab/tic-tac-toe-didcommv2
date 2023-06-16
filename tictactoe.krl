@@ -131,7 +131,7 @@ ruleset tictactoe {
 			move = ent:games{id}{"me"} + ":" + event:attrs{"move"}
 			comment = event:attrs{"comment"}
 			game = ent:games.defaultsTo({}){id}
-			updated_game = game.set(["moves"], game{"moves"}.append(move)).set(["order"], game{"order"} + 1).set(["state"], "their-move")
+			updated_game = game.set(["moves"], game{"moves"}.append(move)).set(["order"], game{"order"} + 1).set(["state"], "their_move")
 			message = generate_tictactoe_move(game{"did"}, game{"id"}, game{"order"}, game{"me"}, updated_game{"moves"}, comment)
 			a = didx:send(game{"did"}, message)
 		}
@@ -146,10 +146,10 @@ ruleset tictactoe {
 		pre {
 			message = event:attrs{"message"}
 		}
-		if (( not ent:games.keys().any(function(x){x == message{"thid"}}))                                                  // Game does not exist
-		   || (ent:games{message{"thid"}}{"state"} == "their_move"                                                       	  // OR It is their move
-		   && not ent:games{message{"thid"}}{"moves"}.any(function(x){ x.split(":")[1] == message{"body"}{"moves"}.reverse().head().split(":")[1]})))  	  // AND The move is unique
-		   && message{"body"}{"moves"}.reverse().head().match(re#[XO]:[A-C][1-3]#) then noop()                              // AND The move is valid
+		if (( not ent:games.keys().any(function(x){x == message{"thid"}}))                                                                         // Game does not exist
+		   || (ent:games{message{"thid"}}{"state"} == "their_move"                                                       	                           // OR It is their move
+		   && not ent:games{message{"thid"}}{"moves"}.any(function(x){ x.split(":")[1] == message{"body"}{"moves"}.reverse().head().split(":")[1]})))  // AND The move is unique
+		   && message{"body"}{"moves"}.reverse().head().match(re#[XO]:[A-C][1-3]#) then noop()                                                     // AND The move is valid
 		fired {
 			raise tictactoe event "accept_move" attributes event:attrs
 		} else {
