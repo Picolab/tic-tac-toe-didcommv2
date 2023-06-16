@@ -20,94 +20,52 @@ ruleset tictactoe {
 			ent:games
 		}
 
-		generate_tictactoe_move = function(id, thid, sender_order, me, moves, comment) {
-			{
+		generate_tictactoe_move = function(their_did, thid, sender_order, me, moves, comment) {
+			didx:generate_message({
 			  	"type": "did:sov:SLfEi9esrjzybysFxQZbfq;spec/tictactoe/1.0/move",
-			  	"typ": "application/didcomm-plain+json",
-			  	"id": id,
+				"from": didx:didMap(){their_did},
+				"to": [their_did],
 			  	"thid": thid,
 			  	"body": {
-					"~thread": {"thid": thid, "sender_order": sender_order},
+					"sender_order": sender_order,
 					"me": me,
 					"moves": moves,
 					"comment": comment
 			  	}
 			}
+			)
 		}
 	  
-		generate_tictactoe_outcome = function(thid, seqnum, winner, comment) {
-			{
+		generate_tictactoe_outcome = function(to, thid, seqnum, winner, comment) {
+			didx:generate_message({
 			  	"type": "did:sov:SLfEi9esrjzybysFxQZbfq;spec/tictactoe/1.0/outcome",
-			  	"typ": "application/didcomm-plain+json",
+				"from": didx:didMap(){to},
+				"to": [to],
 			  	"thid": thid,
 				"body": {
 			  		"winner": winner,
-			  		"comment": comment
+			  		"comment": comment,
+					"seqnum": seqnum
 				}
-			}
+			})
 		}
 
-		generate_problem_report = function(id, message) {
-			{
+		generate_problem_report = function(to, id, message) {
+			didx:generate_message({
 				"type": "https://didcomm.org/report-problem/1.0/problem-report",
-				"typ": "application/didcomm-plain+json",
-				"id": random:uuid(),
+				"from": didx:didMap(){to},
+				"to": [to],
 				"thid": id,
 				"body": {
 					"description": message
 				}
-			}
+			})
 		}
 
-		send_move = function(id, move, me, comment) {
-			game = ent:games.defaultsTo({}){id}
-			moves = game{"moves"}.append(move)
-			a = game.set(["moves"], moves)
-			message = generate_tictactoe_move(a{"id"}, a{"id"}, a{"order"}, me, a{"moves"}, comment)
-			b = a.set(["order"], game{"order"} + 1)
-			c = game{"state"} == "my_move" => b.set(["state"], "their_move") | "not-your-turn"
-			// d = ent:games.set([id], c)
-			s = c.typeof() == "Map" => didx:send(game{"did"}, message) | null
-			c
-		}
-
-		start_game = function(did, move, me, comment) {
-			game = {
-				"id": random:uuid(),
-				"moves": [move],
-				"me": me,
-				"order": 0,
-				"state": "their_move",
-				"did": did
-			}
-			message = generate_tictactoe_move(game{"id"}, null, null, me, game{"moves"}, comment)
-			a = game.set(["order"], game{"order"} + 1)
-			// d = ent:games.defaultsTo({}).put(game{"id"}, a)
-			s = didx:send(game{"did"}, message)
-			a
-		}
-
-		receive_move = function(message, did) {
-			game = (ent:games.defaultsTo({}){message{"id"}} ||
-				   ent:games.defaultsTo({}){message{"thid"}} || {
-						"id": message{"id"},
-						"moves": [],
-						"me": message{"body"}{"me"} == "X" => "O" | "X",
-						"order": 0,
-						"state": "their_move",
-						"did": did
-				   }).klog("REceive move: ")
-			a = game.set(["moves"], message{"body"}{"moves"}).klog("moves: ")
-			b = game{"state"} == "their_move" => a.set(["state"], "my_move") | "not-your-turn"
-			b
-			// b = ent:games.defaultsTo({}).put(game{"id"}, a).klog("stored? ")
-			// b
-		}
-
-		send_problem_report = function(id, problem) {
-			report = generate_problem_report(id, problem)
-			did = ent:games{id}{"did"}
-			didx:send(did, report)
+		get_move_problem = function(id, move) {
+			not move.match(re#[XO]:[A-C][1-3]#) =>                 "bad-move" |
+			ent:games{id}{"moves"}.any(function(x){ x == move}) => "already-occupied" | 
+			                                                       "not-your-turn"
 		}
     }
 
@@ -123,14 +81,27 @@ ruleset tictactoe {
 	rule start_game {
 		select when tictactoe start_game
 		pre {
-			did = event:attrs{"did"}
-			me = event:attrs{"me"}
-			move = event:attrs{"move"}
-			comment = event:attrs{"comment"}
-			game = start_game(did, move, me, comment)
+			to = event:attrs{"to_did"} // DID to start game with
+			me = event:attrs{"me"} // X or O
+			move = me + ":" + event:attrs{"move"} // [A-C][1-3]
+			comment = event:attrs{"comment"}  // Optional
+			message = generate_tictactoe_move(to, null, 0, me, [move], comment)
+			game = {
+				"id": message{"id"},
+				"moves": [move],
+				"me": me,
+				"order": 1,
+				"state": "their_move",
+				"did": to
+			}
 		}
-		always {
+		if move.match(re#[XO]:[A-C][1-3]#) 
+		then didx:send(to, message)
+		fired {
 			ent:games := ent:games.defaultsTo({}).put(game{"id"}, game)
+			raise tictactoe event "game_started" attributes event:attrs
+		} else {
+			raise tictactoe event "report_invalid_move" attributes event:attrs.put("move", move)
 		}
 	}
 
@@ -138,16 +109,35 @@ ruleset tictactoe {
         select when tictactoe send_move
     	pre {
         	id = event:attrs{"id"}
-			move = event:attrs{"move"}
-			me = event:attrs{"me"}
+			move = ent:games{id}{"me"} + ":" + event:attrs{"move"}
 			comment = event:attrs{"comment"}
-			game = send_move(id, move, me, comment)
     	}
-		if game.typeof() == "Map" then noop()
+		// Verify it is my move, the move has not already been made, and it is a valid move
+		if  ent:games{id}{"state"} == "my_move" && 
+			not ent:games{id}{"moves"}.any(function(x){ x == move }) &&
+			move.match(re#[XO]:[A-C][1-3]#) 
+		then noop()
 		fired {
-			ent:games := ent:games.defaultsTo({}).put(game{"id"}, game)
+			raise tictactoe event "move_validated" attributes event:attrs
 		} else {
-			// Not your turn!
+			raise tictactoe event "report_invalid_move" attributes event:attrs
+		}
+	}
+
+	rule move_validated {
+		select when tictactoe move_validated
+		pre {
+        	id = event:attrs{"id"}
+			move = ent:games{id}{"me"} + ":" + event:attrs{"move"}
+			comment = event:attrs{"comment"}
+			game = ent:games.defaultsTo({}){id}
+			updated_game = game.set(["moves"], game{"moves"}.append(move)).set(["order"], game{"order"} + 1).set(["state"], "their-move")
+			message = generate_tictactoe_move(game{"did"}, game{"id"}, game{"order"}, game{"me"}, updated_game{"moves"}, comment)
+		}
+		didx:send(game{"did"}, message)
+		always {
+			ent:games := ent:games.defaultsTo({}).put(game{"id"}, updated_game)
+			raise tictactoe event "move_sent" attributes event:attrs
 		}
 	}
 
@@ -155,23 +145,58 @@ ruleset tictactoe {
     	select when tictactoe receive_move
 		pre {
 			message = event:attrs{"message"}
-			their_did = event:attrs{"metadata"}{"encrypted_from_kid"}.split("#")[0]
-			game = receive_move(message, their_did)
 		}
-		if game.typeof() == "Map" then noop()
+		if (( not ent:games.any(function(x){x == message{"thid"}}))                                                         // Game does not exist
+		   || (ent:games{message{"thid"}}{"state"} == "their_move"                                                       	  // OR It is their move
+		   && not ent:games{message{"thid"}}{"moves"}.any(function(x){ x == message{"body"}{"moves"}.reverse().head()})))  	  // AND The move is unique
+		   && message{"body"}{"moves"}.reverse().head().match(re#[XO]:[A-C][1-3]#) then noop()                              // AND The move is valid
 		fired {
-			ent:games := ent:games.defaultsTo({}).put(game{"id"}, game)
+			raise tictactoe event "accept_move" attributes event:attrs
 		} else {
-			raise tictactoe event "send_problem_report" attributes event:attrs.put("problem", game)
+			raise tictactoe event "send_problem_report" attributes event:attrs
+		}
+	}
+
+	rule accept_move {
+		select when tictactoe accept_move
+		pre {
+			message = event:attrs{"message"}
+			game = (ent:games.defaultsTo({}){message{"thid"}}.set(["moves"], message{"body"}{"moves"}).set(["state"], "my_move") || {
+				"id": message{"id"},
+				 "moves": message{"body"}{"moves"},
+				 "me": message{"body"}{"me"} == "X" => "O" | "X",
+				 "order": 1,
+				 "state": "my_move",
+				 "did": message{"from"}
+			})
+		}
+		always {
+			ent:games := ent:games.defaultsTo({}).put(game{"id"}, game)
+			raise tictactoe event "move_accepted" attributes event:attrs
 		}
 	}
 
   	rule send_outcome {
     	select when tictactoe send_outcome
+		pre {
+			id = event:attrs{"id"}
+			winner = event:attrs{"winner"}
+			comment = event:attrs{"comment"}
+			seqnum = ent:games{id}{"order"}
+			to = ent:games{id}{"did"}
+			message = generate_tictactoe_outcome(to, id, seqnum, winner, comment)
+		}
+		didx:send(to, message)
+		always {
+			raise tictactoe event "outcome_sent" attributes event:attrs
+		}
   	}
 
   	rule receive_outcome {
     	select when tictactoe receive_outcome
+		pre {
+			message = event:attrs{"message"}.klog("Received outcome: ")
+		}
   	}
 
 	rule delete_game {
@@ -184,17 +209,35 @@ ruleset tictactoe {
 		}
 	}
 
+	rule report_invalid_move {
+		select when tictactoe report_invalid_move
+		pre {
+			move = event:attrs{"move"}
+			id = event:attrs{"id"}
+			problem = get_move_problem(id, move)
+		}
+		send_directive("say", problem)
+		always {
+			raise tictactoe event "invalid_move_reported" attributes event:attrs.put("report", problem)
+		}
+	}
+
 	rule send_problem_report {
 		select when tictactoe send_problem_report
 		pre {
 			id = event:attrs{"message"}{"id"}
-			problem = event:attrs{"problem"}
-			a = send_problem_report(id, problem)
+			problem = get_move_problem(message{"thid"}, message{"body"}{"moves"}.reverse().head())
+			to = ent:games{id}{"did"}
+			report = generate_problem_report(to, id, problem)
 		}
+		didx:send(to, report)
 	}
+
 	rule receive_problem_report {
 		select when tictactoe receive_problem_report
-
+		pre {
+			report = event:attrs{"message"}.klog("Received problem report: ")
+		}
 	}
 
 }
