@@ -95,9 +95,9 @@ ruleset tictactoe {
 				"did": to
 			}
 		}
-		if move.match(re#[XO]:[A-C][1-3]#) 
-		then didx:send(to, message)
+		if move.match(re#[XO]:[A-C][1-3]#) then noop()
 		fired {
+			a = didx:send(to, message)
 			ent:games := ent:games.defaultsTo({}).put(game{"id"}, game)
 			raise tictactoe event "game_started" attributes event:attrs
 		} else {
@@ -133,8 +133,8 @@ ruleset tictactoe {
 			game = ent:games.defaultsTo({}){id}
 			updated_game = game.set(["moves"], game{"moves"}.append(move)).set(["order"], game{"order"} + 1).set(["state"], "their-move")
 			message = generate_tictactoe_move(game{"did"}, game{"id"}, game{"order"}, game{"me"}, updated_game{"moves"}, comment)
+			a = didx:send(game{"did"}, message)
 		}
-		didx:send(game{"did"}, message)
 		always {
 			ent:games := ent:games.defaultsTo({}).put(game{"id"}, updated_game)
 			raise tictactoe event "move_sent" attributes event:attrs
@@ -185,8 +185,8 @@ ruleset tictactoe {
 			seqnum = ent:games{id}{"order"}
 			to = ent:games{id}{"did"}
 			message = generate_tictactoe_outcome(to, id, seqnum, winner, comment)
+			a = didx:send(to, message)
 		}
-		didx:send(to, message)
 		always {
 			raise tictactoe event "outcome_sent" attributes event:attrs
 		}
@@ -229,8 +229,8 @@ ruleset tictactoe {
 			problem = get_move_problem(message{"thid"}, message{"body"}{"moves"}.reverse().head())
 			to = ent:games{message{"thid"}}{"did"}
 			report = generate_problem_report(to, message{"thid"}, problem)
+			a = didx:send(to, report)
 		}
-		didx:send(to, report)
 	}
 
 	rule receive_problem_report {
