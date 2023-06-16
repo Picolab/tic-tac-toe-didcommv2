@@ -146,7 +146,7 @@ ruleset tictactoe {
 		pre {
 			message = event:attrs{"message"}
 		}
-		if (( not ent:games.any(function(x){x == message{"thid"}}))                                                         // Game does not exist
+		if (( not ent:games.keys().any(function(x){x == message{"thid"}}))                                                  // Game does not exist
 		   || (ent:games{message{"thid"}}{"state"} == "their_move"                                                       	  // OR It is their move
 		   && not ent:games{message{"thid"}}{"moves"}.any(function(x){ x == message{"body"}{"moves"}.reverse().head()})))  	  // AND The move is unique
 		   && message{"body"}{"moves"}.reverse().head().match(re#[XO]:[A-C][1-3]#) then noop()                              // AND The move is valid
