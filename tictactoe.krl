@@ -167,7 +167,7 @@ ruleset tictactoe {
 					"id": message{"id"},
 					 "moves": message{"body"}{"moves"},
 					 "me": message{"body"}{"me"} == "X" => "O" | "X",
-					 "order": 1,
+					 "order": 0,
 					 "state": "my_move",
 					 "did": message{"from"}
 				}
