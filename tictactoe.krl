@@ -120,7 +120,7 @@ ruleset tictactoe {
 		fired {
 			raise tictactoe event "move_validated" attributes event:attrs
 		} else {
-			raise tictactoe event "report_invalid_move" attributes event:attrs
+			raise tictactoe event "report_invalid_move" attributes event:attrs.put("move", move)
 		}
 	}
 
