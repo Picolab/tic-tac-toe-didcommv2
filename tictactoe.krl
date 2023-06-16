@@ -161,14 +161,16 @@ ruleset tictactoe {
 		select when tictactoe accept_move
 		pre {
 			message = event:attrs{"message"}
-			game = (ent:games.defaultsTo({}){message{"thid"}}.set(["moves"], message{"body"}{"moves"}).set(["state"], "my_move") || {
-				"id": message{"id"},
-				 "moves": message{"body"}{"moves"},
-				 "me": message{"body"}{"me"} == "X" => "O" | "X",
-				 "order": 1,
-				 "state": "my_move",
-				 "did": message{"from"}
-			})
+			game = ent:games.defaultsTo({}).keys().any(function(x){ x == message{"thid"}}) => 
+				ent:games.defaultsTo({}){message{"thid"}}.set(["moves"], message{"body"}{"moves"}).set(["state"], "my_move") 
+				| {
+					"id": message{"id"},
+					 "moves": message{"body"}{"moves"},
+					 "me": message{"body"}{"me"} == "X" => "O" | "X",
+					 "order": 1,
+					 "state": "my_move",
+					 "did": message{"from"}
+				}
 		}
 		always {
 			ent:games := ent:games.defaultsTo({}).put(game{"id"}, game)
