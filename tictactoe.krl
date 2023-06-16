@@ -114,7 +114,7 @@ ruleset tictactoe {
     	}
 		// Verify it is my move, the move has not already been made, and it is a valid move
 		if  ent:games{id}{"state"} == "my_move" && 
-			not ent:games{id}{"moves"}.any(function(x){ x == move }) &&
+			not ent:games{id}{"moves"}.any(function(x){ x.split(":")[1] == move.split(":")[1] }) &&
 			move.match(re#[XO]:[A-C][1-3]#) 
 		then noop()
 		fired {
