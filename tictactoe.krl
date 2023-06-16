@@ -225,10 +225,10 @@ ruleset tictactoe {
 	rule send_problem_report {
 		select when tictactoe send_problem_report
 		pre {
-			id = event:attrs{"message"}{"id"}
+			message = event:attrs{"message"}
 			problem = get_move_problem(message{"thid"}, message{"body"}{"moves"}.reverse().head())
-			to = ent:games{id}{"did"}
-			report = generate_problem_report(to, id, problem)
+			to = ent:games{message{"thid"}}{"did"}
+			report = generate_problem_report(to, message{"thid"}, problem)
 		}
 		didx:send(to, report)
 	}
